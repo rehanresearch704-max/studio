@@ -1,5 +1,5 @@
 'use client';
-import { collection, doc, updateDoc, serverTimestamp, addDoc, query } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import type { Incident, Appointment } from '@/types';
 import { format } from 'date-fns';
 import {
@@ -22,26 +22,17 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 
 
-export default function IncidentManagement() {
+interface IncidentManagementProps {
+    incidents: Incident[];
+    isLoading: boolean;
+}
+
+export default function IncidentManagement({ incidents, isLoading: loading }: IncidentManagementProps) {
     const { toast } = useToast();
     const firestore = useFirestore();
-
-    const incidentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'incidents'));
-    }, [firestore]);
-
-    const { data: rawIncidents, isLoading: loading } = useCollection<Incident>(incidentsQuery);
-
-    const incidents = rawIncidents
-        ? rawIncidents.map(inc => ({
-            ...inc,
-            timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
-        })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-        : [];
 
     const assignWellnessSession = async (incident: Incident) => {
         if (!incident.id || !incident.targetStudentId || !incident.targetStudentName) {

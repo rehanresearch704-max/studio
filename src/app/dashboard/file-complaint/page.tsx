@@ -26,6 +26,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Incident, UserProfile } from '@/types';
 import { classifyIncidentType } from '@/ai/flows/classify-incident-type';
 import { Progress } from '@/components/ui/progress';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const formSchema = z.object({
   targetStudentId: z.string().min(1, { message: 'Please enter the ID of the student you are reporting.' }),
@@ -62,8 +64,9 @@ export default function FileComplaintPage() {
 
     setIsLoading(true);
     setUploadProgress(0);
+    
     try {
-      // Fetch the target student's name
+      // Step 1: Fetch target student's name
       let targetStudentName = 'N/A';
       const q = query(collection(db, 'users'), where('uid', '==', values.targetStudentId));
       const querySnapshot = await getDocs(q);
@@ -76,12 +79,12 @@ export default function FileComplaintPage() {
            return;
       }
       
+      // Step 2: Upload files
       let voiceRecordingUrl: string | undefined = undefined;
       let mediaUrls: string[] = [];
       const totalFiles = (values.voiceRecording?.[0] ? 1 : 0) + (values.mediaFiles?.length || 0);
       let filesUploaded = 0;
 
-      // Upload voice recording
       if (values.voiceRecording && values.voiceRecording[0]) {
         const file = values.voiceRecording[0];
         const filePath = `incidents/${uuidv4()}-${file.name}`;
@@ -90,7 +93,6 @@ export default function FileComplaintPage() {
         setUploadProgress((filesUploaded / totalFiles) * 100);
       }
 
-      // Upload media files
       if (values.mediaFiles && values.mediaFiles.length > 0) {
         for (const file of Array.from(values.mediaFiles as FileList)) {
           const filePath = `incidents/${uuidv4()}-${file.name}`;
@@ -101,8 +103,10 @@ export default function FileComplaintPage() {
         }
       }
 
+      // Step 3: Classify incident type via AI
       const classification = await classifyIncidentType({ audioTranscript: values.description });
 
+      // Step 4: Prepare incident data
       const newIncident: Omit<Incident, 'id'> = {
         timestamp: serverTimestamp() as any,
         type: classification.incidentType,
@@ -117,20 +121,33 @@ export default function FileComplaintPage() {
         mediaUrls,
       };
 
-      await addDoc(collection(db, 'incidents'), newIncident);
+      // Step 5: Submit to Firestore (non-blocking)
+      addDoc(collection(db, 'incidents'), newIncident)
+        .then(() => {
+          toast({
+            title: 'Complaint Filed Successfully',
+            description: 'Your report has been submitted for review.',
+          });
+          form.reset();
+        })
+        .catch((serverError) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'incidents',
+            operation: 'create',
+            requestResourceData: newIncident,
+          }));
+        })
+        .finally(() => {
+          setIsLoading(false);
+          setUploadProgress(0);
+        });
 
-      toast({
-        title: 'Complaint Filed Successfully',
-        description: 'Your report has been submitted for review.',
-      });
-      form.reset();
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Submission Failed',
-        description: error.message || 'An unexpected error occurred. Please try again.',
+        description: error.message || 'An unexpected error occurred during pre-submission steps. Please try again.',
       });
-    } finally {
       setIsLoading(false);
       setUploadProgress(0);
     }

@@ -22,26 +22,28 @@ import { Label } from '../ui/label';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { Progress } from '../ui/progress';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
-const createIncidentReport = async (
-    transcript: string, 
-    guardId: string, 
-    location: GeoPoint | null, 
+const prepareIncidentReport = async (
+    transcript: string,
+    guardId: string,
+    location: GeoPoint | null,
     voiceUrl: string | undefined,
     mediaUrls: string[],
     targetStudentId?: string
-): Promise<void> => {
+): Promise<Omit<Incident, 'id'>> => {
     if (!transcript) {
         throw new Error("Transcript is empty.");
     }
     const classification = await classifyIncidentType({ audioTranscript: transcript });
-    
+
     const newIncident: Omit<Incident, 'id'> = {
         timestamp: serverTimestamp() as any,
         type: classification.incidentType,
         audioTranscript: transcript,
-        location: location || new GeoPoint(0,0), // Fallback location
+        location: location || new GeoPoint(0, 0), // Fallback location
         status: 'reported',
         reporterId: guardId,
         reporterName: 'Campus Security',
@@ -49,7 +51,7 @@ const createIncidentReport = async (
         voiceRecordingUrl: voiceUrl,
         mediaUrls: mediaUrls
     };
-    await addDoc(collection(db, 'incidents'), newIncident);
+    return newIncident;
 };
 
 
@@ -89,72 +91,71 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
     setIsSubmitting(true);
     setUploadProgress(0);
     
-    navigator.geolocation.getCurrentPosition(
-        async (position) => {
-            const location = new GeoPoint(position.coords.latitude, position.coords.longitude);
-            try {
-                let voiceRecordingUrl: string | undefined = undefined;
-                let mediaUrls: string[] = [];
-                const totalFiles = (voiceFile ? 1 : 0) + (mediaFiles?.length || 0);
-                let filesUploaded = 0;
+    const submit = async (location: GeoPoint | null) => {
+        try {
+            // Step 1: Upload files
+            let voiceRecordingUrl: string | undefined = undefined;
+            let mediaUrls: string[] = [];
+            const totalFiles = (voiceFile ? 1 : 0) + (mediaFiles?.length || 0);
+            let filesUploaded = 0;
 
-                if (voiceFile) {
-                    const filePath = `incidents/${uuidv4()}-${voiceFile.name}`;
-                    voiceRecordingUrl = await uploadFile(voiceFile, filePath);
+            if (voiceFile) {
+                const filePath = `incidents/${uuidv4()}-${voiceFile.name}`;
+                voiceRecordingUrl = await uploadFile(voiceFile, filePath);
+                filesUploaded++;
+                setUploadProgress((filesUploaded / totalFiles) * 100);
+            }
+
+            if (mediaFiles && mediaFiles.length > 0) {
+                for (const file of Array.from(mediaFiles)) {
+                    const filePath = `incidents/${uuidv4()}-${file.name}`;
+                    const url = await uploadFile(file, filePath);
+                    mediaUrls.push(url);
                     filesUploaded++;
                     setUploadProgress((filesUploaded / totalFiles) * 100);
                 }
-
-                if (mediaFiles && mediaFiles.length > 0) {
-                    for (const file of Array.from(mediaFiles)) {
-                      const filePath = `incidents/${uuidv4()}-${file.name}`;
-                      const url = await uploadFile(file, filePath);
-                      mediaUrls.push(url);
-                      filesUploaded++;
-                      setUploadProgress((filesUploaded / totalFiles) * 100);
-                    }
-                }
-
-                await createIncidentReport(finalTranscript, guardId, location, voiceRecordingUrl, mediaUrls, targetStudentId);
-                toast({ title: 'Success', description: 'Incident report submitted and classified.' });
-                setCurrentTranscript('');
-                setTargetStudentId('');
-                setVoiceFile(null);
-                setMediaFiles(null);
-                clearTranscript();
-            } catch (err: any) {
-                toast({ variant: 'destructive', title: 'Submission Failed', description: err.message });
-            } finally {
-                setIsSubmitting(false);
-                setUploadProgress(0);
             }
+
+            // Step 2: Prepare incident data (including AI classification)
+            const newIncident = await prepareIncidentReport(finalTranscript, guardId, location, voiceRecordingUrl, mediaUrls, targetStudentId);
+
+            // Step 3: Submit to Firestore (non-blocking)
+            addDoc(collection(db, 'incidents'), newIncident)
+                .then(() => {
+                    toast({ title: 'Success', description: 'Incident report submitted and classified.' });
+                    setCurrentTranscript('');
+                    setTargetStudentId('');
+                    setVoiceFile(null);
+                    setMediaFiles(null);
+                    clearTranscript();
+                })
+                .catch((serverError) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: 'incidents',
+                        operation: 'create',
+                        requestResourceData: newIncident,
+                    }));
+                })
+                .finally(() => {
+                    setIsSubmitting(false);
+                    setUploadProgress(0);
+                });
+
+        } catch (err: any) {
+            toast({ variant: 'destructive', title: 'Submission Failed', description: err.message });
+            setIsSubmitting(false);
+            setUploadProgress(0);
+        }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const location = new GeoPoint(position.coords.latitude, position.coords.longitude);
+            submit(location);
         },
-        async (error) => {
+        (error) => {
             toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get location. Submitting without location data.' });
-             try {
-                // Duplicating upload logic for the error path
-                let voiceRecordingUrl: string | undefined = undefined;
-                let mediaUrls: string[] = [];
-                if (voiceFile) voiceRecordingUrl = await uploadFile(voiceFile, `incidents/${uuidv4()}-${voiceFile.name}`);
-                if (mediaFiles) {
-                    for (const file of Array.from(mediaFiles)) {
-                        mediaUrls.push(await uploadFile(file, `incidents/${uuidv4()}-${file.name}`));
-                    }
-                }
-                
-                await createIncidentReport(finalTranscript, guardId, null, voiceRecordingUrl, mediaUrls, targetStudentId);
-                toast({ title: 'Success', description: 'Incident report submitted and classified.' });
-                setCurrentTranscript('');
-                setTargetStudentId('');
-                setVoiceFile(null);
-                setMediaFiles(null);
-                clearTranscript();
-            } catch (err: any) {
-                toast({ variant: 'destructive', title: 'Submission Failed', description: err.message });
-            } finally {
-                setIsSubmitting(false);
-                setUploadProgress(0);
-            }
+            submit(null);
         }
     );
   }
@@ -183,7 +184,7 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
                     <Languages className="h-4 w-4" />
                     <span>Select Reporting Language</span>
                 </div>
-                <Select value={language} onValuechange={setLanguage} disabled={isListening}>
+                <Select value={language} onValueChange={setLanguage} disabled={isListening}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select language" />
                     </SelectTrigger>

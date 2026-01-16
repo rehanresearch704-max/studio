@@ -1,26 +1,16 @@
 'use client';
-import { useState, useEffect } from 'react';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
-import { collection, onSnapshot, QuerySnapshot, DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Incident } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
-export default function IncidentHeatmap() {
-    const [incidents, setIncidents] = useState<Incident[]>([]);
-    const [loading, setLoading] = useState(true);
+interface IncidentHeatmapProps {
+    incidents: Incident[];
+    isLoading: boolean;
+}
+
+export default function IncidentHeatmap({ incidents, isLoading: loading }: IncidentHeatmapProps) {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-    useEffect(() => {
-        const unsubscribe = onSnapshot(collection(db, 'incidents'), (snapshot: QuerySnapshot<DocumentData>) => {
-            const incidentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Incident));
-            setIncidents(incidentsData);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, []);
 
     if (!apiKey) {
         return (
