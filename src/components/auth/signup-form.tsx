@@ -37,6 +37,7 @@ const formSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   role: z.enum(['student', 'faculty', 'parent', 'visitor', 'guard']),
   department: z.string().optional(),
+  adminCode: z.string().optional(),
 });
 
 export function SignupForm() {
@@ -52,10 +53,12 @@ export function SignupForm() {
       password: '',
       role: 'student',
       department: '',
+      adminCode: '',
     },
   });
   
   const role = form.watch('role');
+  const adminCode = form.watch('adminCode');
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -63,14 +66,16 @@ export function SignupForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
+      const roleToAssign = values.adminCode === 'hitamsuperor' ? 'admin' : values.role;
+
       const userProfile: UserProfile = {
           uid: user.uid,
           name: values.name,
           email: values.email,
-          role: values.role,
+          role: roleToAssign,
       };
 
-      if (values.role === 'faculty' && values.department) {
+      if (userProfile.role === 'faculty' && values.department) {
           userProfile.department = values.department;
       }
 
@@ -134,44 +139,61 @@ export function SignupForm() {
             </FormItem>
           )}
         />
-         <FormField
+        <FormField
           control={form.control}
-          name="role"
+          name="adminCode"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>I am a...</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role on campus" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="faculty">Faculty</SelectItem>
-                  <SelectItem value="parent">Parent</SelectItem>
-                  <SelectItem value="visitor">Visitor</SelectItem>
-                  <SelectItem value="guard">Security Guard</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>Admin Code (Optional)</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="Enter special code for admin access" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        {role === 'faculty' && (
-           <FormField
-              control={form.control}
-              name="department"
-              render={({ field }) => (
+        {adminCode !== 'hitamsuperor' && (
+         <>
+            <FormField
+            control={form.control}
+            name="role"
+            render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Department</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Computer Science" value={field.value || ''} onChange={field.onChange} />
-                  </FormControl>
-                  <FormMessage />
+                <FormLabel>I am a...</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select your role on campus" />
+                    </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="faculty">Faculty</SelectItem>
+                    <SelectItem value="parent">Parent</SelectItem>
+                    <SelectItem value="visitor">Visitor</SelectItem>
+                    <SelectItem value="guard">Security Guard</SelectItem>
+                    </SelectContent>
+                </Select>
+                <FormMessage />
                 </FormItem>
-              )}
+            )}
             />
+            {role === 'faculty' && (
+            <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <FormControl>
+                        <Input placeholder="e.g., Computer Science" value={field.value || ''} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            )}
+         </>
         )}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
