@@ -35,7 +35,8 @@ const formSchema = z.object({
   name: z.string().min(2, { message: 'Please enter your full name.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  role: z.enum(['student', 'faculty', 'parent', 'visitor']),
+  role: z.enum(['student', 'faculty', 'parent', 'visitor', 'guard']),
+  department: z.string().optional(),
 });
 
 export function SignupForm() {
@@ -50,8 +51,11 @@ export function SignupForm() {
       email: '',
       password: '',
       role: 'student',
+      department: '',
     },
   });
+  
+  const role = form.watch('role');
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -65,6 +69,10 @@ export function SignupForm() {
           email: values.email,
           role: values.role,
       };
+
+      if (values.role === 'faculty' && values.department) {
+          userProfile.department = values.department;
+      }
 
       await setDoc(doc(db, 'users', user.uid), userProfile);
       
@@ -143,12 +151,28 @@ export function SignupForm() {
                   <SelectItem value="faculty">Faculty</SelectItem>
                   <SelectItem value="parent">Parent</SelectItem>
                   <SelectItem value="visitor">Visitor</SelectItem>
+                  <SelectItem value="guard">Security Guard</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+        {role === 'faculty' && (
+           <FormField
+              control={form.control}
+              name="department"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Department</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Computer Science" value={field.value || ''} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        )}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Create Account

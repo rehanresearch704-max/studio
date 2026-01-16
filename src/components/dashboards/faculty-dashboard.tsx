@@ -1,3 +1,4 @@
+'use client';
 import type { UserProfile, Appointment } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,42 +6,48 @@ import { Badge } from '@/components/ui/badge';
 import { Check, Clock, User, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
+import { collection, onSnapshot, query, where, doc, updateDoc, DocumentData, QuerySnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
-
-const mockAppointments: Appointment[] = [
-    {
-        id: '1',
-        studentId: 's1',
-        studentName: 'Alice Johnson',
-        staffId: 'f1',
-        staffName: 'Dr. Evelyn Reed',
-        type: 'Academic Guidance',
-        time: new Date(2024, 6, 25, 10, 0),
-        status: 'pending',
-    },
-    {
-        id: '2',
-        studentId: 's2',
-        studentName: 'Bob Williams',
-        staffId: 'f1',
-        staffName: 'Dr. Evelyn Reed',
-        type: 'Grievance Redressal',
-        time: new Date(2024, 6, 26, 14, 30),
-        status: 'approved',
-    },
-    {
-        id: '3',
-        studentId: 's3',
-        studentName: 'Charlie Brown',
-        staffId: 'f1',
-        staffName: 'Dr. Evelyn Reed',
-        type: 'Mentorship',
-        time: new Date(2024, 6, 28, 11, 0),
-        status: 'pending',
-    }
-];
 
 export default function FacultyDashboard({ userProfile }: { userProfile: UserProfile }) {
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (!userProfile?.uid) return;
+        const q = query(collection(db, 'appointments'), where('staffId', '==', userProfile.uid));
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+            const appointmentData = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                time: d.data().time?.toDate()
+            } as Appointment)).sort((a, b) => a.time.getTime() - b.time.getTime());
+            setAppointments(appointmentData);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [userProfile?.uid]);
+
+    const handleApprove = async (appointmentId?: string) => {
+        if (!appointmentId) return;
+        const appointmentRef = doc(db, 'appointments', appointmentId);
+        try {
+            await updateDoc(appointmentRef, { status: 'approved' });
+            toast({ title: 'Success', description: 'Appointment approved.' });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to approve appointment.' });
+        }
+    };
+    
+    const pendingAppointments = appointments.filter(a => a.status === 'pending');
+    const upcomingAppointments = appointments.filter(a => a.status === 'approved');
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -55,7 +62,7 @@ export default function FacultyDashboard({ userProfile }: { userProfile: UserPro
                   <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                  <div className="text-2xl font-bold">{mockAppointments.filter(a => a.status === 'pending').length}</div>
+                  <div className="text-2xl font-bold">{loading ? <Loader2 className="h-6 w-6 animate-spin"/> : pendingAppointments.length}</div>
                   <p className="text-xs text-muted-foreground">Awaiting your approval</p>
               </CardContent>
           </Card>
@@ -65,7 +72,7 @@ export default function FacultyDashboard({ userProfile }: { userProfile: UserPro
                   <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                  <div className="text-2xl font-bold">{mockAppointments.filter(a => a.status === 'approved').length}</div>
+                  <div className="text-2xl font-bold">{loading ? <Loader2 className="h-6 w-6 animate-spin"/> : upcomingAppointments.length}</div>
                    <p className="text-xs text-muted-foreground">Confirmed appointments</p>
               </CardContent>
           </Card>
@@ -75,7 +82,7 @@ export default function FacultyDashboard({ userProfile }: { userProfile: UserPro
                   <User className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                  <div className="text-2xl font-bold">3</div>
+                  <div className="text-2xl font-bold">{loading ? <Loader2 className="h-6 w-6 animate-spin"/> : new Set(appointments.map(a => a.studentId)).size}</div>
                    <p className="text-xs text-muted-foreground">You are mentoring</p>
               </CardContent>
           </Card>
@@ -87,41 +94,49 @@ export default function FacultyDashboard({ userProfile }: { userProfile: UserPro
               <CardDescription>Review and manage incoming requests from students.</CardDescription>
           </CardHeader>
           <CardContent>
-              <Table>
-                  <TableHeader>
-                      <TableRow>
-                          <TableHead>Student</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Date & Time</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {mockAppointments.map(apt => (
-                          <TableRow key={apt.id}>
-                              <TableCell>{apt.studentName}</TableCell>
-                              <TableCell>{apt.type}</TableCell>
-                              <TableCell>{format(apt.time, 'MMM d, yyyy, h:mm a')}</TableCell>
-                              <TableCell>
-                                 <Badge variant={apt.status === 'pending' ? 'secondary' : apt.status === 'approved' ? 'default' : 'destructive'}>
-                                    {apt.status}
-                                  </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                  {apt.status === 'pending' && (
-                                    <div className="space-x-2">
-                                      <Button variant="outline" size="sm">Reschedule</Button>
-                                      <Button size="sm">
-                                        <Check className="mr-2 h-4 w-4" /> Approve
-                                      </Button>
-                                    </div>
-                                  )}
-                              </TableCell>
-                          </TableRow>
-                      ))}
-                  </TableBody>
-              </Table>
+              {loading ? (
+                  <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              ) : (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Student</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Date & Time</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {appointments.length > 0 ? appointments.map(apt => (
+                            <TableRow key={apt.id}>
+                                <TableCell>{apt.studentName}</TableCell>
+                                <TableCell>{apt.type}</TableCell>
+                                <TableCell>{format(apt.time, 'MMM d, yyyy, h:mm a')}</TableCell>
+                                <TableCell>
+                                   <Badge variant={apt.status === 'pending' ? 'secondary' : apt.status === 'approved' ? 'default' : 'destructive'}>
+                                      {apt.status}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {apt.status === 'pending' && apt.id && (
+                                      <div className="space-x-2">
+                                        <Button variant="outline" size="sm">Reschedule</Button>
+                                        <Button size="sm" onClick={() => handleApprove(apt.id)}>
+                                          <Check className="mr-2 h-4 w-4" /> Approve
+                                        </Button>
+                                      </div>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center">No session requests found.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+              )}
           </CardContent>
       </Card>
     </div>
