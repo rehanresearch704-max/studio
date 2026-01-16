@@ -89,7 +89,11 @@ service cloud.firestore {
      * Checks if the requesting user is a parent of the given studentId.
      */
     function isParentOf(studentId) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childrenUids.hasAny([studentId]);
+      // Ensure childrenUids exists before trying to access it.
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'childrenUids' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childrenUids.hasAny([studentId]);
     }
 
     /**
@@ -129,7 +133,11 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC), separating create and manage permissions.
      */
     match /incidents/{incidentId} {
-      allow read: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
+      allow get: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
+      allow list: if isAdmin() ||
+                     (isStudent() && request.query.get('reporterId') == request.auth.uid) ||
+                     (isStudent() && request.query.get('targetStudentId') == request.auth.uid) ||
+                     (isParentOf(request.query.get('targetStudentId')));
       allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if false; // Incidents cannot be deleted from the client.
@@ -144,7 +152,7 @@ service cloud.firestore {
      */
     match /appointments/{appointmentId} {
       allow get: if isAppointmentParticipant(resource.data);
-      allow list: if false; // Listing is denied; clients must query for appointments where they are a participant.
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
       allow update: if isExistingDoc() && isAppointmentParticipant(resource.data);
       allow delete: if isExistingDoc() && isAppointmentParticipant(resource.data);
