@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
-import { collection, query, where, or } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import type { Incident } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,30 +9,45 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useMemo } from 'react';
 
 export default function ComplaintTracker() {
   const { user } = useAuth();
   const firestore = useFirestore();
 
-  const incidentsQuery = useMemoFirebase(() => {
+  const reportedByMeQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return query(
-        collection(firestore, 'incidents'), 
-        or(
-            where('reporterId', '==', user.uid),
-            where('targetStudentId', '==', user.uid)
-        )
-    );
+    return query(collection(firestore, 'incidents'), where('reporterId', '==', user.uid));
   }, [user, firestore]);
-  
-  const { data: rawIncidents, isLoading: loading } = useCollection<Incident>(incidentsQuery);
 
-  const incidents = rawIncidents
-    ? rawIncidents.map(inc => ({
-        ...inc,
-        timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
-      })).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime())
-    : [];
+  const involvingMeQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'incidents'), where('targetStudentId', '==', user.uid));
+  }, [user, firestore]);
+
+  const { data: reportedByMe, isLoading: loadingReported } = useCollection<Incident>(reportedByMeQuery);
+  const { data: involvingMe, isLoading: loadingInvolving } = useCollection<Incident>(involvingMeQuery);
+
+  const loading = loadingReported || loadingInvolving;
+  
+  const incidents = useMemo(() => {
+    if (loading) return []; // Don't compute until both are loaded
+
+    const allIncidents = [
+        ...(reportedByMe || []),
+        ...(involvingMe || [])
+    ];
+    
+    // Deduplicate incidents using a Map
+    const uniqueIncidents = Array.from(new Map(allIncidents.map(inc => [inc.id, inc])).values());
+    
+    return uniqueIncidents
+        .map(inc => ({
+            ...inc,
+            timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
+        }))
+        .sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [reportedByMe, involvingMe, loading]);
 
   const getStatusBadgeVariant = (status: Incident['status']) => {
       switch(status) {
