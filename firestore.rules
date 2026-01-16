@@ -118,7 +118,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin(); // Admins can view profiles too
-      allow list: if isAdmin(); // Only admins can list users
+      allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.uid == userId && request.resource.data.email.matches('.*@hitam\\.org$');
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin(); // Only admins can delete users
