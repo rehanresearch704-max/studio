@@ -43,7 +43,7 @@ export default function IncidentHeatmap({ incidents, isLoading: loading }: Incid
                             defaultZoom={15}
                             mapId="campus-guardian-map"
                         >
-                            {incidents.map(incident => (
+                            {incidents && incidents.map(incident => (
                                 incident.location &&
                                 <AdvancedMarker 
                                     key={incident.id} 

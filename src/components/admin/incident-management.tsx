@@ -1,5 +1,5 @@
 'use client';
-import { doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import type { Incident, Appointment } from '@/types';
 import { format } from 'date-fns';
 import {
@@ -141,7 +141,7 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
                     <TableBody>
                         {loading ? (
                            <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> 
-                        ) : incidents.length === 0 ? (
+                        ) : !incidents || incidents.length === 0 ? (
                             <TableRow><TableCell colSpan={6} className="text-center">No incidents reported yet.</TableCell></TableRow>
                         ) : incidents.map(incident => (
                             <TableRow key={incident.id}>

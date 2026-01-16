@@ -3,11 +3,8 @@
 import type { UserProfile, Incident } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Users, ShieldAlert, Loader2 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import IncidentManagement from '@/components/admin/incident-management';
-import IncidentHeatmap from '@/components/admin/incident-heatmap';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 
 
 export default function AdminDashboard({ userProfile }: { userProfile: UserProfile }) {
@@ -15,18 +12,12 @@ export default function AdminDashboard({ userProfile }: { userProfile: UserProfi
 
   const incidentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'incidents'));
+    return query(collection(firestore, 'incidents'), orderBy('timestamp', 'desc'));
   }, [firestore]);
 
   const { data: rawIncidents, isLoading: incidentsLoading } = useCollection<Incident>(incidentsQuery);
 
-  const incidents = rawIncidents
-    ? rawIncidents.map(inc => ({
-        ...inc,
-        id: inc.id,
-        timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : new Date(),
-      })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    : [];
+  const incidents = rawIncidents || [];
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -84,19 +75,6 @@ export default function AdminDashboard({ userProfile }: { userProfile: UserProfi
           </CardContent>
         </Card>
       </div>
-        <Tabs defaultValue="management" className="space-y-4">
-            <TabsList>
-                <TabsTrigger value="management">Incident Management</TabsTrigger>
-                <TabsTrigger value="heatmap">Incident Heatmap</TabsTrigger>
-            </TabsList>
-            <TabsContent value="management">
-                <IncidentManagement incidents={incidents} isLoading={incidentsLoading} />
-            </TabsContent>
-            <TabsContent value="heatmap">
-                <IncidentHeatmap incidents={incidents} isLoading={incidentsLoading} />
-            </TabsContent>
-        </Tabs>
-
     </div>
   );
 }
