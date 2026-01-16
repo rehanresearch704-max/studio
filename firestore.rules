@@ -134,10 +134,7 @@ service cloud.firestore {
      */
     match /incidents/{incidentId} {
       allow get: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
-      allow list: if isAdmin() ||
-                     (isStudent() && request.query.get('reporterId') == request.auth.uid) ||
-                     (isStudent() && request.query.get('targetStudentId') == request.auth.uid) ||
-                     (isParentOf(request.query.get('targetStudentId')));
+      allow list: if isSignedIn();
       allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if false; // Incidents cannot be deleted from the client.
