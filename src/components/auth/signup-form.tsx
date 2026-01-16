@@ -35,7 +35,7 @@ const formSchema = z.object({
   name: z.string().min(2, { message: 'Please enter your full name.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }).refine(email => email.endsWith('@hitam.org'), { message: 'Only emails from hitam.org are allowed.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  role: z.enum(['student', 'faculty', 'visitor', 'guard']),
+  role: z.enum(['student', 'faculty', 'visitor', 'guard', 'admin']),
   department: z.string().optional(),
 });
 
@@ -152,6 +152,7 @@ export function SignupForm() {
                 <SelectItem value="faculty">Faculty</SelectItem>
                 <SelectItem value="visitor">Visitor</SelectItem>
                 <SelectItem value="guard">Security Guard</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
             </Select>
             <FormMessage />
