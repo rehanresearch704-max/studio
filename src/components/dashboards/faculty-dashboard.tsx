@@ -6,37 +6,33 @@ import { Badge } from '@/components/ui/badge';
 import { Check, Clock, User, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
-import { collection, onSnapshot, query, where, doc, updateDoc, DocumentData, QuerySnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
+import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
 
 export default function FacultyDashboard({ userProfile }: { userProfile: UserProfile }) {
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [loading, setLoading] = useState(true);
     const { toast } = useToast();
+    const firestore = useFirestore();
 
-    useEffect(() => {
-        if (!userProfile?.uid) return;
-        const q = query(collection(db, 'appointments'), where('staffId', '==', userProfile.uid));
-        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-            const appointmentData = snapshot.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                time: d.data().time?.toDate()
-            } as Appointment)).sort((a, b) => a.time.getTime() - b.time.getTime());
-            setAppointments(appointmentData);
-            setLoading(false);
-        });
+    const appointmentsQuery = useMemoFirebase(() => {
+        if (!userProfile?.uid || !firestore) return null;
+        return query(collection(firestore, 'appointments'), where('staffId', '==', userProfile.uid));
+    }, [userProfile?.uid, firestore]);
+    
+    const { data: rawAppointments, isLoading: loading } = useCollection<Appointment>(appointmentsQuery);
 
-        return () => unsubscribe();
-    }, [userProfile?.uid]);
+    const appointments = rawAppointments
+        ? rawAppointments.map(apt => ({
+            ...apt,
+            time: (apt.time as any)?.toDate ? (apt.time as any).toDate() : apt.time,
+        })).sort((a, b) => a.time.getTime() - b.time.getTime())
+        : [];
 
     const handleApprove = async (appointmentId?: string) => {
-        if (!appointmentId) return;
-        const appointmentRef = doc(db, 'appointments', appointmentId);
+        if (!appointmentId || !firestore) return;
+        const appointmentRef = doc(firestore, 'appointments', appointmentId);
         try {
             await updateDoc(appointmentRef, { status: 'approved' });
             toast({ title: 'Success', description: 'Appointment approved.' });

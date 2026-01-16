@@ -1,7 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, QuerySnapshot, DocumentData, doc, updateDoc, serverTimestamp, addDoc, GeoPoint } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, doc, updateDoc, serverTimestamp, addDoc, query } from 'firebase/firestore';
 import type { Incident, Appointment } from '@/types';
 import { format } from 'date-fns';
 import {
@@ -15,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { HeartPulse, MoreHorizontal } from 'lucide-react';
+import { HeartPulse, MoreHorizontal, Loader2 } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,67 +22,40 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-
-
-// Mock data for initial load until Firestore connects
-const mockIncidents: Incident[] = [
-    {
-        id: 'inc1',
-        timestamp: new Date(),
-        type: 'Verbal Abuse',
-        location: new GeoPoint(17.2945, 78.4730),
-        status: 'reported',
-        reporterId: 'guard123',
-        reporterName: 'Campus Security',
-        targetStudentId: 'stud123',
-        targetStudentName: 'John Doe',
-    },
-    {
-        id: 'inc2',
-        timestamp: new Date(),
-        type: 'Intimidation',
-        location: new GeoPoint(17.2950, 78.4725),
-        status: 'wellness-assigned',
-        reporterId: 'stud456',
-        reporterName: 'Another Student',
-        targetStudentId: 'stud789',
-        targetStudentName: 'Jane Smith',
-    }
-];
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
 
 export default function IncidentManagement() {
-    const [incidents, setIncidents] = useState<Incident[]>(mockIncidents);
-    const [loading, setLoading] = useState(true);
     const { toast } = useToast();
+    const firestore = useFirestore();
 
-    useEffect(() => {
-        const unsubscribe = onSnapshot(collection(db, 'incidents'), (snapshot: QuerySnapshot<DocumentData>) => {
-            const incidentsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return { 
-                    id: doc.id,
-                    ...data,
-                    timestamp: data.timestamp?.toDate() // Convert Firestore Timestamp to JS Date
-                } as Incident;
-            }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-            
-            setIncidents(incidentsData);
-            setLoading(false);
-        });
+    const incidentsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'incidents'));
+    }, [firestore]);
 
-        return () => unsubscribe();
-    }, []);
+    const { data: rawIncidents, isLoading: loading } = useCollection<Incident>(incidentsQuery);
+
+    const incidents = rawIncidents
+        ? rawIncidents.map(inc => ({
+            ...inc,
+            timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
+        })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        : [];
 
     const assignWellnessSession = async (incident: Incident) => {
         if (!incident.id || !incident.targetStudentId || !incident.targetStudentName) {
             toast({ variant: 'destructive', title: 'Error', description: 'Incident data is incomplete for wellness assignment.' });
             return;
         }
+        if (!firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+            return;
+        }
 
         try {
             // Create a new appointment
-            await addDoc(collection(db, 'appointments'), {
+            await addDoc(collection(firestore, 'appointments'), {
                 studentId: incident.targetStudentId,
                 studentName: incident.targetStudentName,
                 staffId: 'wellness_dept', // Generic ID for the wellness department
@@ -96,7 +67,7 @@ export default function IncidentManagement() {
             } as Omit<Appointment, 'id'>);
 
             // Update incident status
-            const incidentRef = doc(db, 'incidents', incident.id);
+            const incidentRef = doc(firestore, 'incidents', incident.id);
             await updateDoc(incidentRef, { status: 'wellness-assigned' });
 
             toast({ title: 'Success', description: `Wellness session assigned for ${incident.targetStudentName}.` });
@@ -135,8 +106,10 @@ export default function IncidentManagement() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {loading && incidents.length === 0 ? (
-                           <TableRow><TableCell colSpan={6} className="text-center">Loading incidents...</TableCell></TableRow> 
+                        {loading ? (
+                           <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> 
+                        ) : incidents.length === 0 ? (
+                            <TableRow><TableCell colSpan={6} className="text-center">No incidents reported yet.</TableCell></TableRow>
                         ) : incidents.map(incident => (
                             <TableRow key={incident.id}>
                                 <TableCell>{format(incident.timestamp, 'MMM d, yyyy h:mm a')}</TableCell>
@@ -174,5 +147,3 @@ export default function IncidentManagement() {
         </Card>
     );
 }
-
-    

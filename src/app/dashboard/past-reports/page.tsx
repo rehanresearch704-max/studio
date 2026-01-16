@@ -1,43 +1,31 @@
 'use client';
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { collection, query, where, onSnapshot, DocumentData, QuerySnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import type { Incident } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Loader2, Shield } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
 export default function PastReportsPage() {
   const { user } = useAuth();
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    
-    const q = query(collection(db, 'incidents'), where('reporterId', '==', user.uid));
+  const incidentsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'incidents'), where('reporterId', '==', user.uid));
+  }, [user, firestore]);
 
-    const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-      const incidentsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          timestamp: data.timestamp?.toDate(),
-        } as Incident;
-      }).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
-      setIncidents(incidentsData);
-      setLoading(false);
-    });
+  const { data: rawIncidents, isLoading: loading } = useCollection<Incident>(incidentsQuery);
 
-    return () => unsubscribe();
-  }, [user]);
+  const incidents = rawIncidents
+    ? rawIncidents.map(inc => ({
+        ...inc,
+        timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
+      })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    : [];
 
   return (
     <Card>
