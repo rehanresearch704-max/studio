@@ -4,10 +4,12 @@ import Image from 'next/image';
 import { ShieldCheck } from 'lucide-react';
 
 import { LoginForm } from '@/components/auth/login-form';
+import { SignupForm } from '@/components/auth/signup-form';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function LoginPage() {
   const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
@@ -58,13 +60,30 @@ export default function LoginPage() {
       </div>
       <div className="flex items-center justify-center py-12">
         <div className="mx-auto grid w-[350px] gap-6">
-          <div className="grid gap-2 text-center">
-            <h1 className="font-headline text-3xl font-bold">Welcome Back</h1>
-            <p className="text-balance text-muted-foreground">
-              Sign in to access your dashboard
-            </p>
-          </div>
-          <LoginForm />
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            <TabsContent value="login">
+                <div className="grid gap-2 text-center pt-6 pb-4">
+                    <h1 className="font-headline text-3xl font-bold">Welcome Back</h1>
+                    <p className="text-balance text-muted-foreground">
+                    Sign in to access your dashboard
+                    </p>
+                </div>
+                <LoginForm />
+            </TabsContent>
+            <TabsContent value="signup">
+                <div className="grid gap-2 text-center pt-6 pb-4">
+                    <h1 className="font-headline text-3xl font-bold">Create an Account</h1>
+                    <p className="text-balance text-muted-foreground">
+                    Join the community to get started
+                    </p>
+                </div>
+                <SignupForm />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
