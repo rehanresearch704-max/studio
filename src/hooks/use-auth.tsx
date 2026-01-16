@@ -1,10 +1,10 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { createContext, useContext, ReactNode } from 'react';
+import { User } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
+import { useUser, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -19,35 +19,22 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isUserLoading: isAuthLoading } = useUser();
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
-      if (user) {
-        setUser(user);
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          setUserProfile(userDoc.data() as UserProfile);
-        } else {
-            // Handle case where user exists in Auth but not Firestore
-            setUserProfile(null);
-        }
-      } else {
-        setUser(null);
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
 
-    return () => unsubscribe();
-  }, []);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const loading = isAuthLoading || (!!user && isProfileLoading);
+
+  const value = { user, userProfile: userProfile || null, loading };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

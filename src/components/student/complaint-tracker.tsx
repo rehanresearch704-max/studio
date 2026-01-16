@@ -1,51 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { collection, query, where, onSnapshot, DocumentData, QuerySnapshot, or } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, or } from 'firebase/firestore';
 import type { Incident } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Loader2, ShieldAlert } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
 export default function ComplaintTracker() {
   const { user } = useAuth();
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    // This query finds incidents where the user is either the reporter or the target.
-    const q = query(
-        collection(db, 'incidents'), 
+  const incidentsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+        collection(firestore, 'incidents'), 
         or(
             where('reporterId', '==', user.uid),
             where('targetStudentId', '==', user.uid)
         )
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-      const incidentsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          timestamp: data.timestamp?.toDate(),
-        } as Incident;
-      }).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
-      setIncidents(incidentsData);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+  }, [user, firestore]);
   
+  const { data: rawIncidents, isLoading: loading } = useCollection<Incident>(incidentsQuery);
+
+  const incidents = rawIncidents
+    ? rawIncidents.map(inc => ({
+        ...inc,
+        timestamp: (inc.timestamp as any)?.toDate ? (inc.timestamp as any).toDate() : inc.timestamp,
+      })).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime())
+    : [];
+
   const getStatusBadgeVariant = (status: Incident['status']) => {
       switch(status) {
           case 'reported': return 'destructive';
@@ -104,5 +92,3 @@ export default function ComplaintTracker() {
     </Card>
   );
 }
-
-    

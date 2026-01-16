@@ -1,42 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { collection, query, where, onSnapshot, DocumentData, QuerySnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import type { Appointment } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Calendar, Clock, Loader2, CheckCircle } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
 export default function SessionTracker() {
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    const q = query(collection(db, 'appointments'), where('studentId', '==', user.uid));
-    const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-      const appointmentsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          time: data.time?.toDate(),
-        } as Appointment;
-      }).sort((a,b) => b.time.getTime() - a.time.getTime());
-      setAppointments(appointmentsData);
-      setLoading(false);
-    });
+  const appointmentsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'appointments'), where('studentId', '==', user.uid));
+  }, [user, firestore]);
 
-    return () => unsubscribe();
-  }, [user]);
+  const { data: rawAppointments, isLoading: loading } = useCollection<Appointment>(appointmentsQuery);
+
+  const appointments = rawAppointments
+    ? rawAppointments.map(apt => ({
+        ...apt,
+        time: (apt.time as any)?.toDate ? (apt.time as any).toDate() : apt.time,
+      })).sort((a,b) => b.time.getTime() - a.time.getTime())
+    : [];
   
   const getStatusBadgeVariant = (status: Appointment['status']) => {
       switch(status) {

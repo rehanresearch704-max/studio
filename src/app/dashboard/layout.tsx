@@ -27,6 +27,7 @@ import {
   HeartPulse,
   Siren,
   MessageSquareWarning,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -41,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth as useFirebaseAuth } from '@/firebase';
 import React from 'react';
 
 const getInitials = (name: string) => {
@@ -54,10 +55,11 @@ const getInitials = (name: string) => {
 
 const UserNav = () => {
     const { user, userProfile } = useAuth();
+    const firebaseAuth = useFirebaseAuth();
     const router = useRouter();
 
     const handleSignOut = async () => {
-        await signOut(auth);
+        await signOut(firebaseAuth);
         router.push('/');
     };
 
@@ -113,6 +115,7 @@ const navItems = {
         { href: '/dashboard/book-session', icon: CalendarCheck, label: 'Book Session' },
         { href: '/dashboard/my-sessions', icon: BarChart3, label: 'My Sessions' },
         { href: '/dashboard/file-complaint', icon: MessageSquareWarning, label: 'File Complaint' },
+        { href: '/dashboard/my-incidents', icon: ShieldAlert, label: 'My Incidents' },
         { href: '/dashboard/wellness', icon: HeartPulse, label: 'Wellness' },
     ],
     guard: [
@@ -138,6 +141,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { userProfile } = useAuth();
+  const firebaseAuth = useFirebaseAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(true);
@@ -173,7 +177,7 @@ export default function DashboardLayout({
                  <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton onClick={async () => {
-                             await signOut(auth);
+                             await signOut(firebaseAuth);
                              router.push('/');
                         }}>
                             <LogOut />
@@ -195,5 +199,3 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
-
-    
