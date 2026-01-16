@@ -110,6 +110,7 @@ const navItems = {
         { href: '/dashboard/incidents-map', icon: Map, label: 'Incidents Map' },
         { href: '/dashboard/manage-incidents', icon: Shield, label: 'Manage Incidents' },
         { href: '/dashboard/users', icon: Users, label: 'User Management' },
+        { href: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
     ],
     student: [
         { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
