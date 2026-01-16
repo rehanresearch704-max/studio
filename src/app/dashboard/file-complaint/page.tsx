@@ -5,7 +5,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { addDoc, collection, serverTimestamp, GeoPoint, query, where, getDocs } from 'firebase/firestore';
-import { Loader2, Send, ShieldAlert, User, FileText } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { v4 as uuidv4 } from 'uuid';
+import { Loader2, Send, ShieldAlert, User, FileText, Paperclip, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -18,21 +20,25 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { Incident, UserProfile } from '@/types';
 import { classifyIncidentType } from '@/ai/flows/classify-incident-type';
+import { Progress } from '@/components/ui/progress';
 
 const formSchema = z.object({
   targetStudentId: z.string().min(1, { message: 'Please enter the ID of the student you are reporting.' }),
   description: z.string().min(20, { message: 'Please provide a detailed description of the incident (min. 20 characters).' }),
+  voiceRecording: z.any().optional(),
+  mediaFiles: z.any().optional(),
 });
 
 export default function FileComplaintPage() {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,6 +48,12 @@ export default function FileComplaintPage() {
     },
   });
 
+  const uploadFile = async (file: File, path: string): Promise<string> => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user || !userProfile) {
       toast({ variant: 'destructive', title: 'Authentication Error', description: 'You must be logged in to file a complaint.' });
@@ -49,19 +61,45 @@ export default function FileComplaintPage() {
     }
 
     setIsLoading(true);
+    setUploadProgress(0);
     try {
-        // Fetch the target student's name for a more complete report
-        let targetStudentName = 'N/A';
-        const q = query(collection(db, 'users'), where('uid', '==', values.targetStudentId));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            const targetUserData = querySnapshot.docs[0].data() as UserProfile;
-            targetStudentName = targetUserData.name;
-        } else {
-             toast({ variant: 'destructive', title: 'Student Not Found', description: `No student found with ID: ${values.targetStudentId}`});
-             setIsLoading(false);
-             return;
+      // Fetch the target student's name
+      let targetStudentName = 'N/A';
+      const q = query(collection(db, 'users'), where('uid', '==', values.targetStudentId));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+          const targetUserData = querySnapshot.docs[0].data() as UserProfile;
+          targetStudentName = targetUserData.name;
+      } else {
+           toast({ variant: 'destructive', title: 'Student Not Found', description: `No student found with ID: ${values.targetStudentId}`});
+           setIsLoading(false);
+           return;
+      }
+      
+      let voiceRecordingUrl: string | undefined = undefined;
+      let mediaUrls: string[] = [];
+      const totalFiles = (values.voiceRecording?.[0] ? 1 : 0) + (values.mediaFiles?.length || 0);
+      let filesUploaded = 0;
+
+      // Upload voice recording
+      if (values.voiceRecording && values.voiceRecording[0]) {
+        const file = values.voiceRecording[0];
+        const filePath = `incidents/${uuidv4()}-${file.name}`;
+        voiceRecordingUrl = await uploadFile(file, filePath);
+        filesUploaded++;
+        setUploadProgress((filesUploaded / totalFiles) * 100);
+      }
+
+      // Upload media files
+      if (values.mediaFiles && values.mediaFiles.length > 0) {
+        for (const file of Array.from(values.mediaFiles as FileList)) {
+          const filePath = `incidents/${uuidv4()}-${file.name}`;
+          const url = await uploadFile(file, filePath);
+          mediaUrls.push(url);
+          filesUploaded++;
+          setUploadProgress((filesUploaded / totalFiles) * 100);
         }
+      }
 
       const classification = await classifyIncidentType({ audioTranscript: values.description });
 
@@ -74,14 +112,16 @@ export default function FileComplaintPage() {
         reporterId: user.uid,
         reporterName: userProfile.name,
         targetStudentId: values.targetStudentId,
-        targetStudentName: targetStudentName
+        targetStudentName: targetStudentName,
+        voiceRecordingUrl,
+        mediaUrls,
       };
 
       await addDoc(collection(db, 'incidents'), newIncident);
 
       toast({
         title: 'Complaint Filed Successfully',
-        description: 'Your report has been submitted for review. You can track its status on your dashboard.',
+        description: 'Your report has been submitted for review.',
       });
       form.reset();
     } catch (error: any) {
@@ -92,6 +132,7 @@ export default function FileComplaintPage() {
       });
     } finally {
       setIsLoading(false);
+      setUploadProgress(0);
     }
   }
 
@@ -136,9 +177,36 @@ export default function FileComplaintPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="voiceRecording"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2"><Paperclip /> Attach Voice Memo</FormLabel>
+                    <FormControl>
+                      <Input type="file" accept="audio/*" {...form.register('voiceRecording')} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="mediaFiles"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2"><Camera /> Attach Photos/Videos</FormLabel>
+                    <FormControl>
+                      <Input type="file" accept="image/*,video/*" multiple {...form.register('mediaFiles')} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {isLoading && <Progress value={uploadProgress} className="w-full" />}
               <Button type="submit" className="w-full justify-center" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Submit Secure Report
+                {isLoading ? `Submitting... ${uploadProgress.toFixed(0)}%` : 'Submit Secure Report'}
               </Button>
             </form>
           </Form>
@@ -147,5 +215,3 @@ export default function FileComplaintPage() {
     </div>
   );
 }
-
-    

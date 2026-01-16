@@ -28,6 +28,7 @@ import {
   Siren,
   MessageSquareWarning,
   ShieldAlert,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -124,6 +125,7 @@ const navItems = {
     ],
     faculty: [
         { href: '/dashboard', icon: CalendarCheck, label: 'Session Requests' },
+        { href: '/dashboard/set-availability', icon: Clock, label: 'Set Availability' },
         { href: '/dashboard/student-behavior', icon: BarChart3, label: 'Behavioral Trends' },
     ],
     parent: [

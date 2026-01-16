@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { Loader2, Send, CalendarCheck, User, FileText } from 'lucide-react';
+import { Loader2, Send, CalendarCheck, User, FileText, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuth } from '@/hooks/use-auth';
 import { Appointment, UserProfile } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
   staffId: z.string().min(1, { message: 'Please select a faculty member.' }),
@@ -35,6 +36,7 @@ export default function BookSessionPage() {
   const { user, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [faculty, setFaculty] = useState<UserProfile[]>([]);
+  const [availabilityNotes, setAvailabilityNotes] = useState('');
   
   useEffect(() => {
       const fetchFaculty = async () => {
@@ -54,6 +56,12 @@ export default function BookSessionPage() {
       notes: '',
     },
   });
+
+  const handleFacultyChange = (facultyId: string) => {
+    const selected = faculty.find(f => f.uid === facultyId);
+    setAvailabilityNotes(selected?.availability || '');
+    form.setValue('staffId', facultyId);
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user || !userProfile) {
@@ -90,6 +98,7 @@ export default function BookSessionPage() {
         description: 'Your appointment request has been sent. You can track its status on your dashboard.',
       });
       form.reset();
+      setAvailabilityNotes('');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -122,7 +131,7 @@ export default function BookSessionPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-2"><User /> Faculty Member</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                     <Select onValueChange={handleFacultyChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a faculty member" />
@@ -138,6 +147,13 @@ export default function BookSessionPage() {
                   </FormItem>
                 )}
               />
+              {availabilityNotes && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Faculty Availability</AlertTitle>
+                  <AlertDescription className="whitespace-pre-wrap">{availabilityNotes}</AlertDescription>
+                </Alert>
+              )}
                <FormField
                 control={form.control}
                 name="type"
@@ -167,7 +183,7 @@ export default function BookSessionPage() {
                   <FormItem>
                     <FormLabel className="flex items-center gap-2"><FileText /> Reason for Appointment</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Briefly explain what you would like to discuss." {...field} className="min-h-[150px]" />
+                      <Textarea placeholder="Briefly explain what you would like to discuss, keeping in mind the faculty's available times." {...field} className="min-h-[150px]" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

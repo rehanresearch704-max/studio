@@ -41,6 +41,10 @@
             "type": "string"
           },
           "description": "Array of student UIDs for parent accounts."
+        },
+        "availability": {
+          "type": "string",
+          "description": "Faculty member's availability notes for students."
         }
       },
       "required": [
@@ -97,6 +101,19 @@
         "targetStudentName": {
           "type": "string",
           "description": "Name of the student who is the subject of the complaint."
+        },
+        "voiceRecordingUrl": {
+          "type": "string",
+          "description": "URL to the uploaded voice recording.",
+          "format": "uri"
+        },
+        "mediaUrls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": "Array of URLs to uploaded images or videos."
         }
       },
       "required": [
@@ -267,4 +284,3 @@
     "reasoning": "This Firestore structure is designed to support the CampusConnect application, focusing on security, scalability, and ease of management. It adheres to the principle of Authorization Independence by denormalizing role information and leverages structural segregation to simplify security rules. The key collections are `users`, `incidents`, `appointments`, and `sos_alerts`. The `users` collection stores user profile data, including roles, which are crucial for role-based access control. The `incidents` collection stores incident reports filed by security guards, accessible only to administrators to ensure data privacy and security. The `appointments` collection stores appointment data between students and faculty and the `sos_alerts` collection stores emergency alerts triggered by students, enabling swift responses to distress situations. By storing role information directly in the `users` document and not relying on custom claims, authentication and authorization logic become simpler and more robust.\n\n**Authorization Independence (CRITICAL):**\n*   The `users` collection stores the `role` property directly within the user document. This eliminates the need for `get()` calls to a separate roles collection during authorization, enabling atomic operations and simplifying security rules.\n*   For Incidents, only admin can access it. This restriction is achievable through security rules without any `get()` calls.\n\n**QAPs (Rules are not Filters):**\n*   Secure `list` operations are supported by segregating data based on roles and access requirements. For instance, only administrators can list all incidents, while other users might have limited access to specific data based on their roles or ownership.\n\n**Invariants:**\n*   The structure supports the integrity of ownership and timestamps by enforcing rules on document creation and modification. For example, the `hashedGuardId` field in the `incidents` collection can be validated during creation to ensure proper anonymization.\n\nThis design promotes clear, maintainable security rules and ensures that the application can scale efficiently while maintaining data integrity and user privacy."
   }
 }
-    

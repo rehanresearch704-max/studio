@@ -10,6 +10,7 @@ export interface UserProfile {
   department?: string;
   languagePreference?: string;
   childrenUids?: string[];
+  availability?: string;
 }
 
 export type IncidentType = 'Verbal Abuse' | 'Intimidation' | 'Micro-aggressions' | 'Other';
@@ -25,6 +26,8 @@ export interface Incident {
   reporterName: string;
   targetStudentId?: string;
   targetStudentName?: string;
+  voiceRecordingUrl?: string;
+  mediaUrls?: string[];
 }
 
 export type AppointmentType = 'Academic Guidance' | 'Grievance Redressal' | 'Mentorship' | 'Wellness Session';
@@ -57,5 +60,3 @@ export interface GuestLog {
   purpose: string;
   checkInTime: Timestamp;
 }
-
-    
