@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
 import { LoginForm } from '@/components/auth/login-form';
@@ -84,6 +85,11 @@ export default function LoginPage() {
                 <SignupForm />
             </TabsContent>
           </Tabs>
+          <div className="mt-4 text-center text-sm">
+            <Link href="/admin" className="underline hover:text-primary">
+              Admin Portal
+            </Link>
+          </div>
         </div>
       </div>
     </div>
