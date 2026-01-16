@@ -77,6 +77,20 @@ service cloud.firestore {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'guard';
     }
 
+     /**
+     * Checks if the requesting user has the 'student' role.
+     */
+    function isStudent() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    /**
+     * Checks if the requesting user is a parent of the given studentId.
+     */
+    function isParentOf(studentId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childrenUids.hasAny([studentId]);
+    }
+
     /**
      * Checks if the requesting user is a participant in the given appointment.
      * An appointment is a collaborative document between a student and a staff member.
@@ -97,11 +111,11 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // Disallow listing all users for privacy.
+      allow get: if isOwner(userId) || isAdmin(); // Admins can view profiles too
+      allow list: if isAdmin(); // Only admins can list users
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if false; // User profiles cannot be deleted from the client to prevent orphaned data.
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin(); // Only admins can delete users
     }
 
     /**
@@ -113,8 +127,11 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC), separating create and manage permissions.
      */
     match /incidents/{incidentId} {
-      allow get, list, update, delete: if isAdmin();
-      allow create: if isGuard() || isAdmin();
+      allow get: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
+      allow list: if isAdmin();
+      allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if false; // Incidents cannot be deleted from the client.
     }
 
     /**
@@ -148,3 +165,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Mic, MicOff, Send, Loader2, Languages, Eraser } from 'lucide-react';
+import { Mic, MicOff, Send, Loader2, Languages, Eraser, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,28 +17,26 @@ import { classifyIncidentType } from '@/ai/flows/classify-incident-type';
 import { addDoc, collection, serverTimestamp, GeoPoint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Incident } from '@/types';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 
-const createIncidentReport = async (transcript: string, guardId: string, location: GeoPoint | null): Promise<void> => {
+const createIncidentReport = async (transcript: string, guardId: string, location: GeoPoint | null, targetStudentId?: string): Promise<void> => {
     if (!transcript) {
         throw new Error("Transcript is empty.");
     }
     const classification = await classifyIncidentType({ audioTranscript: transcript });
     
-    // Simple crypto hash for guard ID anonymity (in a real app, use a proper library like bcrypt)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(guardId);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashedGuardId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
     const newIncident: Omit<Incident, 'id'> = {
         timestamp: serverTimestamp() as any,
         type: classification.incidentType,
         audioTranscript: transcript,
         location: location || new GeoPoint(0,0), // Fallback location
         status: 'reported',
-        hashedGuardId: hashedGuardId,
+        reporterId: guardId,
+        reporterName: 'Campus Security',
+        targetStudentId: targetStudentId || undefined,
+        // targetStudentName will need to be populated by an admin or a backend function
     };
     await addDoc(collection(db, 'incidents'), newIncident);
 };
@@ -50,12 +48,15 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [currentTranscript, setCurrentTranscript] = useState('');
+  const [targetStudentId, setTargetStudentId] = useState('');
 
   const handleToggleListening = () => {
     if (isListening) {
       stopListening();
+      // The transcript state update is handled by the hook, but let's merge it to be safe
       setCurrentTranscript(prev => prev + transcript);
     } else {
+      clearTranscript();
       startListening(language);
     }
   };
@@ -72,9 +73,10 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
         async (position) => {
             const location = new GeoPoint(position.coords.latitude, position.coords.longitude);
             try {
-                await createIncidentReport(finalTranscript, guardId, location);
+                await createIncidentReport(finalTranscript, guardId, location, targetStudentId);
                 toast({ title: 'Success', description: 'Incident report submitted and classified.' });
                 setCurrentTranscript('');
+                setTargetStudentId('');
                 clearTranscript();
             } catch (err: any) {
                 toast({ variant: 'destructive', title: 'Submission Failed', description: err.message });
@@ -85,9 +87,10 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
         async (error) => {
             toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get location. Submitting without location data.' });
              try {
-                await createIncidentReport(finalTranscript, guardId, null);
+                await createIncidentReport(finalTranscript, guardId, null, targetStudentId);
                 toast({ title: 'Success', description: 'Incident report submitted and classified.' });
                 setCurrentTranscript('');
+                setTargetStudentId('');
                 clearTranscript();
             } catch (err: any) {
                 toast({ variant: 'destructive', title: 'Submission Failed', description: err.message });
@@ -122,7 +125,7 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
                     <Languages className="h-4 w-4" />
                     <span>Select Reporting Language</span>
                 </div>
-                <Select value={language} onValueChange={setLanguage} disabled={isListening}>
+                <Select value={language} onValuechange={setLanguage} disabled={isListening}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select language" />
                     </SelectTrigger>
@@ -136,6 +139,11 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
                  {error && <p className="text-xs text-destructive">{error}</p>}
                  {!isSupported && <p className="text-xs text-destructive">Speech recognition not supported in this browser.</p>}
             </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor='target-student-id' className="flex items-center gap-2 text-sm text-muted-foreground"><User className="h-4 w-4" /> Involved Student ID (Optional)</Label>
+          <Input id='target-student-id' placeholder='Enter the student ID if known' value={targetStudentId} onChange={(e) => setTargetStudentId(e.target.value)} disabled={isSubmitting}/>
         </div>
 
         <div className="relative">
@@ -173,3 +181,5 @@ export default function IncidentReporter({ guardId }: { guardId: string }) {
     </Card>
   );
 }
+
+    

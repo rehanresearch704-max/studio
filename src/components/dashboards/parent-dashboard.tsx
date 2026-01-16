@@ -2,14 +2,22 @@ import type { UserProfile } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TrendingUp, ShieldCheck, Megaphone, CheckCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import ComplaintViewer from '@/components/parent/complaint-viewer';
 
 export default function ParentDashboard({ userProfile }: { userProfile: UserProfile }) {
+  // Mock data for childrenUids for demonstration purposes
+  const augmentedUserProfile: UserProfile = {
+      ...userProfile,
+      childrenUids: userProfile.childrenUids || ['student123_mock_uid']
+  }
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
             <h1 className="font-headline text-3xl font-bold">Parent &amp; Visitor Portal</h1>
             <p className="text-muted-foreground">Welcome, {userProfile.name}</p>
         </div>
+
+        <ComplaintViewer userProfile={augmentedUserProfile} />
 
         <Card className="bg-gradient-to-r from-primary to-blue-600 text-primary-foreground">
             <CardHeader>
@@ -59,3 +67,5 @@ export default function ParentDashboard({ userProfile }: { userProfile: UserProf
     </div>
   );
 }
+
+    

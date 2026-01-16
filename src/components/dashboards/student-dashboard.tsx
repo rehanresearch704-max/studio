@@ -1,9 +1,10 @@
 import type { UserProfile } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { CalendarCheck, BarChart3, HeartPulse } from 'lucide-react';
+import { CalendarCheck, BarChart3, HeartPulse, MessageSquareWarning } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import SessionTracker from '@/components/student/session-tracker';
+import ComplaintTracker from '@/components/student/complaint-tracker';
 
 export default function StudentDashboard({ userProfile }: { userProfile: UserProfile }) {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: UserPro
         <p className="text-muted-foreground">Welcome, {userProfile.name}</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <Card className="flex flex-col">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><CalendarCheck className="text-primary"/> Book a Session</CardTitle>
@@ -27,26 +28,20 @@ export default function StudentDashboard({ userProfile }: { userProfile: UserPro
         </Card>
         <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="text-accent"/>Track Your Requests</CardTitle>
-            <CardDescription>View the real-time status of your pending and approved appointments.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><MessageSquareWarning className="text-destructive"/> File a Complaint</CardTitle>
+            <CardDescription>Report an incident or concern securely and confidentially.</CardDescription>
           </CardHeader>
           <CardContent className="flex-grow flex items-end">
-            <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/my-sessions')}>View My Sessions</Button>
-          </CardContent>
-        </Card>
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><HeartPulse className="text-destructive"/> Wellness Manager</CardTitle>
-            <CardDescription>Your private portal for stigma-free mental health appointments.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-grow flex items-end">
-            <Button variant="secondary" className="w-full" onClick={() => router.push('/dashboard/wellness')}>Access Wellness</Button>
+            <Button variant="destructive" className="w-full" onClick={() => router.push('/dashboard/file-complaint')}>Report an Incident</Button>
           </CardContent>
         </Card>
       </div>
 
       <SessionTracker />
+      <ComplaintTracker />
       
     </div>
   );
 }
+
+    

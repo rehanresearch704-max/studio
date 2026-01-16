@@ -9,6 +9,7 @@ export interface UserProfile {
   role: UserRole;
   department?: string;
   languagePreference?: string;
+  childrenUids?: string[];
 }
 
 export type IncidentType = 'Verbal Abuse' | 'Intimidation' | 'Micro-aggressions' | 'Other';
@@ -20,9 +21,10 @@ export interface Incident {
   audioTranscript?: string;
   location: GeoPoint;
   status: 'reported' | 'in-progress' | 'resolved' | 'wellness-assigned';
-  hashedGuardId: string;
-  involvedStudentId?: string;
-  involvedStudentName?: string;
+  reporterId: string;
+  reporterName: string;
+  targetStudentId?: string;
+  targetStudentName?: string;
 }
 
 export type AppointmentType = 'Academic Guidance' | 'Grievance Redressal' | 'Mentorship' | 'Wellness Session';
@@ -55,3 +57,5 @@ export interface GuestLog {
   purpose: string;
   checkInTime: Timestamp;
 }
+
+    

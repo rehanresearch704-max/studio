@@ -34,9 +34,10 @@ const mockIncidents: Incident[] = [
         type: 'Verbal Abuse',
         location: new GeoPoint(17.2945, 78.4730),
         status: 'reported',
-        hashedGuardId: 'hashed123',
-        involvedStudentId: 'stud123',
-        involvedStudentName: 'John Doe',
+        reporterId: 'guard123',
+        reporterName: 'Campus Security',
+        targetStudentId: 'stud123',
+        targetStudentName: 'John Doe',
     },
     {
         id: 'inc2',
@@ -44,9 +45,10 @@ const mockIncidents: Incident[] = [
         type: 'Intimidation',
         location: new GeoPoint(17.2950, 78.4725),
         status: 'wellness-assigned',
-        hashedGuardId: 'hashed456',
-        involvedStudentId: 'stud456',
-        involvedStudentName: 'Jane Smith',
+        reporterId: 'stud456',
+        reporterName: 'Another Student',
+        targetStudentId: 'stud789',
+        targetStudentName: 'Jane Smith',
     }
 ];
 
@@ -75,16 +77,16 @@ export default function IncidentManagement() {
     }, []);
 
     const assignWellnessSession = async (incident: Incident) => {
-        if (!incident.id || !incident.involvedStudentId || !incident.involvedStudentName) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Incident data is incomplete.' });
+        if (!incident.id || !incident.targetStudentId || !incident.targetStudentName) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Incident data is incomplete for wellness assignment.' });
             return;
         }
 
         try {
             // Create a new appointment
             await addDoc(collection(db, 'appointments'), {
-                studentId: incident.involvedStudentId,
-                studentName: incident.involvedStudentName,
+                studentId: incident.targetStudentId,
+                studentName: incident.targetStudentName,
                 staffId: 'wellness_dept', // Generic ID for the wellness department
                 staffName: 'Wellness Center',
                 type: 'Wellness Session',
@@ -97,7 +99,7 @@ export default function IncidentManagement() {
             const incidentRef = doc(db, 'incidents', incident.id);
             await updateDoc(incidentRef, { status: 'wellness-assigned' });
 
-            toast({ title: 'Success', description: `Wellness session assigned for ${incident.involvedStudentName}.` });
+            toast({ title: 'Success', description: `Wellness session assigned for ${incident.targetStudentName}.` });
         } catch (error) {
             console.error("Error assigning wellness session:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign wellness session.' });
@@ -126,19 +128,21 @@ export default function IncidentManagement() {
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Type</TableHead>
-                            <TableHead>Student Involved</TableHead>
+                            <TableHead>Reported By</TableHead>
+                            <TableHead>Target Student</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading && incidents.length === 0 ? (
-                           <TableRow><TableCell colSpan={5} className="text-center">Loading incidents...</TableCell></TableRow> 
+                           <TableRow><TableCell colSpan={6} className="text-center">Loading incidents...</TableCell></TableRow> 
                         ) : incidents.map(incident => (
                             <TableRow key={incident.id}>
                                 <TableCell>{format(incident.timestamp, 'MMM d, yyyy h:mm a')}</TableCell>
                                 <TableCell>{incident.type}</TableCell>
-                                <TableCell>{incident.involvedStudentName || 'N/A'}</TableCell>
+                                <TableCell>{incident.reporterName || 'N/A'}</TableCell>
+                                <TableCell>{incident.targetStudentName || incident.targetStudentId || 'N/A'}</TableCell>
                                 <TableCell>
                                     <Badge variant={getStatusBadgeVariant(incident.status)}>{incident.status.replace('-', ' ')}</Badge>
                                 </TableCell>
@@ -154,7 +158,7 @@ export default function IncidentManagement() {
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                             <DropdownMenuItem
                                                 onClick={() => assignWellnessSession(incident)}
-                                                disabled={!incident.involvedStudentId || incident.status === 'wellness-assigned'}
+                                                disabled={!incident.targetStudentId || incident.status === 'wellness-assigned'}
                                             >
                                                 <HeartPulse className="mr-2 h-4 w-4" />
                                                 Assign Wellness Session
@@ -170,3 +174,5 @@ export default function IncidentManagement() {
         </Card>
     );
 }
+
+    
