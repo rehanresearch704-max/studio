@@ -1,0 +1,249 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account in the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "uid": {
+          "type": "string",
+          "description": "Firebase user ID."
+        },
+        "name": {
+          "type": "string",
+          "description": "User's full name."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "User's role (e.g., student, security guard, administrator)."
+        },
+        "languagePreference": {
+          "type": "string",
+          "description": "User's preferred language."
+        },
+        "department": {
+          "type": "string",
+          "description": "User's department or section."
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "name",
+        "email",
+        "role"
+      ]
+    },
+    "Incident": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Incident",
+      "type": "object",
+      "description": "Represents a reported incident.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the incident entity."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the incident occurred.",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of incident (e.g., Verbal Abuse, Intimidation)."
+        },
+        "audioTranscript": {
+          "type": "string",
+          "description": "Transcription of the audio recording of the incident."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location where the incident occurred (e.g., coordinates)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the incident (e.g., reported, under review, resolved)."
+        },
+        "hashedGuardId": {
+          "type": "string",
+          "description": "Hashed ID of the security guard reporting the incident."
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "type",
+        "location",
+        "status",
+        "hashedGuardId"
+      ]
+    },
+    "Appointment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Appointment",
+      "type": "object",
+      "description": "Represents a scheduled appointment between a student and faculty/in-charge.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the appointment entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Appointment)"
+        },
+        "staffId": {
+          "type": "string",
+          "description": "Reference to Staff. (Relationship: Staff 1:N Appointment)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of appointment (e.g., Academic Guidance, Grievance Redressal)."
+        },
+        "time": {
+          "type": "string",
+          "description": "Scheduled time of the appointment.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes or details about the appointment."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the appointment (e.g., Pending, Approved, Completed)."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "staffId",
+        "type",
+        "time",
+        "status"
+      ]
+    },
+    "SosAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SosAlert",
+      "type": "object",
+      "description": "Represents an emergency SOS alert triggered by a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SOS alert entity."
+        },
+        "uid": {
+          "type": "string",
+          "description": "User ID of the student who triggered the alert."
+        },
+        "coords": {
+          "type": "string",
+          "description": "Coordinates (latitude and longitude) of the student's location."
+        },
+        "activeStatus": {
+          "type": "boolean",
+          "description": "Indicates whether the alert is currently active."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the alert was triggered.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "coords",
+        "activeStatus",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile data, including 'uid', 'name', 'role', 'languagePreference', and 'department'.  The 'role' field is crucial for authorization and eliminates the need for additional reads.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique Firebase user ID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/incidents/{incidentId}",
+        "definition": {
+          "entityName": "Incident",
+          "schema": {
+            "$ref": "#/backend/entities/Incident"
+          },
+          "description": "Stores incident reports. Only accessible to administrators. Includes fields like 'timestamp', 'type', 'audioTranscript', 'location', 'status', and 'hashedGuardId'.",
+          "params": [
+            {
+              "name": "incidentId",
+              "description": "The unique identifier for the incident."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/appointments/{appointmentId}",
+        "definition": {
+          "entityName": "Appointment",
+          "schema": {
+            "$ref": "#/backend/entities/Appointment"
+          },
+          "description": "Stores appointment data.  Includes fields like 'studentId', 'staffId', 'type', 'time', 'notes', and 'status'.",
+          "params": [
+            {
+              "name": "appointmentId",
+              "description": "The unique identifier for the appointment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sos_alerts/{sosAlertId}",
+        "definition": {
+          "entityName": "SosAlert",
+          "schema": {
+            "$ref": "#/backend/entities/SosAlert"
+          },
+          "description": "Stores emergency SOS alerts triggered by students. Includes fields like 'uid', 'coords', 'activeStatus', and 'timestamp'.",
+          "params": [
+            {
+              "name": "sosAlertId",
+              "description": "The unique identifier for the SOS alert."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to support the CampusConnect application, focusing on security, scalability, and ease of management. It adheres to the principle of Authorization Independence by denormalizing role information and leverages structural segregation to simplify security rules. The key collections are `users`, `incidents`, `appointments`, and `sos_alerts`. The `users` collection stores user profile data, including roles, which are crucial for role-based access control. The `incidents` collection stores incident reports filed by security guards, accessible only to administrators to ensure data privacy and security. The `appointments` collection stores appointment data between students and faculty and the `sos_alerts` collection stores emergency alerts triggered by students, enabling swift responses to distress situations. By storing role information directly in the `users` document and not relying on custom claims, authentication and authorization logic become simpler and more robust.\n\n**Authorization Independence (CRITICAL):**\n*   The `users` collection stores the `role` property directly within the user document. This eliminates the need for `get()` calls to a separate roles collection during authorization, enabling atomic operations and simplifying security rules.\n*   For Incidents, only admin can access it. This restriction is achievable through security rules without any `get()` calls.\n\n**QAPs (Rules are not Filters):**\n*   Secure `list` operations are supported by segregating data based on roles and access requirements. For instance, only administrators can list all incidents, while other users might have limited access to specific data based on their roles or ownership.\n\n**Invariants:**\n*   The structure supports the integrity of ownership and timestamps by enforcing rules on document creation and modification. For example, the `hashedGuardId` field in the `incidents` collection can be validated during creation to ensure proper anonymization.\n\nThis design promotes clear, maintainable security rules and ensures that the application can scale efficiently while maintaining data integrity and user privacy."
+  }
+}

@@ -1,0 +1,143 @@
+/**
+ * Core Philosophy: This ruleset implements a security model based on user roles and data ownership.
+ * It establishes a clear distinction between standard users and privileged administrators. Standard
+ * users have control over their own data (like their user profile and SOS alerts), while administrators
+ * have exclusive access to sensitive, system-wide collections like incident reports.
+ *
+ * Data Structure:
+ * - /users/{userId}: Private user profiles, only accessible by the owner. Contains a 'role' field.
+ * - /incidents/{incidentId}: Sensitive reports, strictly accessible only by administrators.
+ * - /appointments/{appointmentId}: Collaborative documents shared between two specific users (a student and staff member).
+ * - /sos_alerts/{sosAlertId}: User-owned emergency alerts, which are also visible to administrators for safety monitoring.
+ *
+ * Key Security Decisions:
+ * - Admin-Only Collections: The '/incidents' collection is completely locked down to users with the 'administrator' role,
+ *   enforcing strict confidentiality for reported issues.
+ * - No User Listing: To protect user privacy, listing the entire '/users' collection is disabled for all clients.
+ * - Shared Ownership: Appointments in '/appointments' are accessible only to the two participants defined in the document,
+ *   enabling collaborative but private scheduling.
+ * - Default Deny: Access is denied by default. Rules are written to explicitly grant permissions based on defined logic.
+ *
+ * Denormalization for Authorization:
+ * - A 'role' field is stored directly on each document in the '/users' collection. This avoids costly cross-collection `get()`
+ *   calls in most rules and allows for a simple, performant `isAdmin()` check that reads the requesting user's own profile.
+ * - Appointment documents contain 'studentId' and 'staffId' fields, allowing rules to authorize access without needing to look up
+ *   related documents.
+ * - SOS alerts contain a 'uid' field, which directly links the alert to its owner for straightforward ownership checks.
+ *
+ * Structural Segregation:
+ * - Sensitive data (incidents) is placed in a separate top-level collection, '/incidents', rather than being mixed with other data.
+ *   This makes it simple to write a single, secure rule that locks down the entire collection for administrators only.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------
+    // Helper Functions
+    // --------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's ID matches the provided userId.
+     * This is the primary function for enforcing data ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks if a document already exists.
+     * CRITICAL for safe update and delete operations.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * Checks if the requesting user has the 'administrator' role.
+     * This performs a single document read to the user's own profile to check their role.
+     */
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator';
+    }
+
+    /**
+     * Checks if the requesting user is a participant in the given appointment.
+     * An appointment is a collaborative document between a student and a staff member.
+     */
+    function isAppointmentParticipant(appointmentData) {
+      return isSignedIn() && (request.auth.uid == appointmentData.studentId || request.auth.uid == appointmentData.staffId);
+    }
+
+    // --------------------------------
+    // Collection Rules
+    // --------------------------------
+
+    /**
+     * @description Users can create and manage their own profile information.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user (uid: 'user123') creates their own profile at `/users/user123`.
+     * @deny (update) User 'user123' tries to update the profile of 'user456'.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Disallow listing all users for privacy.
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isOwner(userId);
+      allow delete: if false; // User profiles cannot be deleted from the client to prevent orphaned data.
+    }
+
+    /**
+     * @description Only administrators can view, create, or manage incident reports.
+     * @path /incidents/{incidentId}
+     * @allow (list) An admin lists all documents in the 'incidents' collection.
+     * @deny (get) A regular, non-admin user attempts to read a specific incident report.
+     * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
+     */
+    match /incidents/{incidentId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Access to an appointment is restricted to its participants (student and staff).
+     * @path /appointments/{appointmentId}
+     * @allow (get) The user identified by 'studentId' reads their own appointment document.
+     * @deny (get) A third-party user, not listed as 'studentId' or 'staffId', tries to read an appointment.
+     * @principle Implements a "Shared Access" model for collaborative documents.
+     */
+    match /appointments/{appointmentId} {
+      allow get: if isAppointmentParticipant(resource.data);
+      allow list: if false; // Listing is denied; clients must query for appointments where they are a participant.
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isExistingDoc() && isAppointmentParticipant(resource.data);
+      allow delete: if isExistingDoc() && isAppointmentParticipant(resource.data);
+    }
+
+    /**
+     * @description Users can create their own SOS alerts, and administrators can view all alerts for safety monitoring.
+     * @path /sos_alerts/{sosAlertId}
+     * @allow (create) A user creates an SOS alert, setting their own 'uid' in the document.
+     * @deny (update) A user attempts to update an SOS alert that was created by another user.
+     * @principle Enforces document ownership for writes, with privileged read access for administrators.
+     */
+    match /sos_alerts/{sosAlertId} {
+      allow get: if isOwner(resource.data.uid) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all alerts; users must query for their own.
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isExistingDoc() && isOwner(resource.data.uid);
+      allow delete: if isExistingDoc() && isOwner(resource.data.uid);
+    }
+  }
+}
