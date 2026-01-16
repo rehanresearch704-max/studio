@@ -13,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { HeartPulse, MoreHorizontal, Loader2 } from 'lucide-react';
+import { HeartPulse, MoreHorizontal, Loader2, Upload } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -87,11 +87,53 @@ export default function IncidentManagement() {
         }
     }
 
+    const exportToCSV = () => {
+        if (!incidents || incidents.length === 0) {
+            toast({ variant: 'destructive', title: 'No Data', description: 'There is no incident data to export.' });
+            return;
+        }
+
+        const headers = ['ID', 'Date', 'Type', 'Status', 'Reported By', 'Target Student', 'Description'];
+        const csvRows = [
+            headers.join(','),
+            ...incidents.map(inc => [
+                `"${inc.id}"`,
+                `"${format(inc.timestamp, 'yyyy-MM-dd HH:mm:ss')}"`,
+                `"${inc.type}"`,
+                `"${inc.status}"`,
+                `"${inc.reporterName || 'N/A'}"`,
+                `"${inc.targetStudentName || inc.targetStudentId || 'N/A'}"`,
+                `"${(inc.audioTranscript || '').replace(/"/g, '""')}"`,
+            ].join(','))
+        ];
+
+        const csvString = csvRows.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'incident_reports.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({ title: 'Export Successful', description: 'Incident data has been downloaded as a CSV file.' });
+    };
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Live Incident Feed</CardTitle>
-                <CardDescription>Monitor and manage all reported incidents across campus.</CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle>Live Incident Feed</CardTitle>
+                        <CardDescription>Monitor and manage all reported incidents across campus.</CardDescription>
+                    </div>
+                    <Button onClick={exportToCSV} variant="outline">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Export to CSV
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
