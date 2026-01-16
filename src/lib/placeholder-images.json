@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "login-background",
+      "description": "A modern university campus building under a clear sky.",
+      "imageUrl": "https://images.unsplash.com/photo-1680226425348-cedaf70ec06d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjYW1wdXMlMjBidWlsZGluZ3xlbnwwfHx8fDE3Njg1ODM2MDZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "campus building"
+    }
+  ]
 }
