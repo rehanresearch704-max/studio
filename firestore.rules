@@ -129,8 +129,7 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC), separating create and manage permissions.
      */
     match /incidents/{incidentId} {
-      allow get: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
-      allow list: if isAdmin();
+      allow read: if isAdmin() || isOwner(resource.data.reporterId) || isOwner(resource.data.targetStudentId) || isParentOf(resource.data.targetStudentId);
       allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if false; // Incidents cannot be deleted from the client.
