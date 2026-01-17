@@ -15,6 +15,7 @@ export interface UserProfile {
 }
 
 export type IncidentType = 'Verbal Abuse' | 'Intimidation' | 'Micro-aggressions' | 'Other';
+export type IncidentStatus = 'reported' | 'in-progress' | 'resolved' | 'wellness-assigned';
 
 export interface Incident {
   id?: string;
@@ -22,7 +23,7 @@ export interface Incident {
   type: IncidentType;
   audioTranscript?: string;
   location: GeoPoint;
-  status: 'reported' | 'in-progress' | 'resolved' | 'wellness-assigned';
+  status: IncidentStatus;
   reporterId: string;
   reporterName: string;
   targetStudentId?: string;
