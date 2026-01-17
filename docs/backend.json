@@ -56,7 +56,8 @@
         "uid",
         "name",
         "email",
-        "role"
+        "role",
+        "mobileNumber"
       ]
     },
     "Incident": {

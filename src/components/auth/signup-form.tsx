@@ -35,7 +35,7 @@ const formSchema = z.object({
   name: z.string().min(2, { message: 'Please enter your full name.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }).refine(email => email.endsWith('@hitam.org'), { message: 'Only emails from hitam.org are allowed.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  mobileNumber: z.string().optional(),
+  mobileNumber: z.string().length(10, { message: 'Mobile number must be 10 digits.'}),
   role: z.enum(['student', 'faculty', 'visitor', 'guard', 'admin']),
   department: z.string().optional(),
   adminCode: z.string().optional(),
@@ -82,11 +82,8 @@ export function SignupForm() {
           name: values.name,
           email: values.email,
           role: values.role,
+          mobileNumber: values.mobileNumber,
       };
-
-      if (values.mobileNumber) {
-        userProfile.mobileNumber = values.mobileNumber;
-      }
 
       if (userProfile.role === 'faculty' && values.department) {
           userProfile.department = values.department;
@@ -158,7 +155,7 @@ export function SignupForm() {
           name="mobileNumber"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Mobile Number (Optional)</FormLabel>
+              <FormLabel>Mobile Number</FormLabel>
               <FormControl>
                 <Input type="tel" placeholder="9876543210" {...field} />
               </FormControl>

@@ -7,11 +7,11 @@ export interface UserProfile {
   name: string;
   email: string;
   role: UserRole;
+  mobileNumber: string;
   department?: string;
   languagePreference?: string;
   childrenUids?: string[];
   availability?: string;
-  mobileNumber?: string;
 }
 
 export type IncidentType = 'Verbal Abuse' | 'Intimidation' | 'Micro-aggressions' | 'Other';
