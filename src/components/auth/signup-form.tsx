@@ -37,6 +37,7 @@ const formSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   role: z.enum(['student', 'faculty', 'visitor', 'guard', 'admin']),
   department: z.string().optional(),
+  adminCode: z.string().optional(),
 });
 
 export function SignupForm() {
@@ -52,6 +53,7 @@ export function SignupForm() {
       password: '',
       role: 'student',
       department: '',
+      adminCode: '',
     },
   });
   
@@ -60,6 +62,16 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
+      if (values.role === 'admin' && values.adminCode !== 'qwerty!@12') {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid Admin Code',
+          description: 'The code you entered to create an admin account is incorrect.',
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
@@ -159,6 +171,21 @@ export function SignupForm() {
             </FormItem>
         )}
         />
+        {role === 'admin' && (
+          <FormField
+            control={form.control}
+            name="adminCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Admin Code</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="Enter special code" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         {role === 'faculty' && (
         <FormField
             control={form.control}
