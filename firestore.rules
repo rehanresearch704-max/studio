@@ -108,12 +108,14 @@ service cloud.firestore {
     // --------------------------------
 
     /**
-     * @description Users can create and manage their own profile information. User emails must end in @hitam.org.
+     * @description Users can create and manage their own profile information. Admins can manage all profiles.
      * @path /users/{userId}
      * @allow (create) An authenticated user (uid: 'user123') with a 'hitam.org' email creates their own profile at `/users/user123`.
+     * @allow (update) Admin 'admin123' updates the role of user 'user456'.
+     * @allow (delete) Admin 'admin123' deletes the profile of 'user456'.
      * @deny (create) A user with a 'gmail.com' email tries to create a profile.
      * @deny (update) User 'user123' tries to update the profile of 'user456'.
-     * @principle Restricts access to a user's own data tree and enforces domain policy.
+     * @principle Restricts access to a user's own data tree and enforces domain policy, while giving admins full control.
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin(); // Admins can view profiles too
