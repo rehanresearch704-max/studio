@@ -1,5 +1,6 @@
 'use client';
-import { doc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { useState } from 'react';
+import { doc, updateDoc, serverTimestamp, addDoc, collection, deleteDoc } from 'firebase/firestore';
 import type { Incident, Appointment } from '@/types';
 import { format } from 'date-fns';
 import {
@@ -13,14 +14,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { HeartPulse, MoreHorizontal, Loader2, Upload } from 'lucide-react';
+import { HeartPulse, MoreHorizontal, Loader2, Upload, Trash2 } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 
@@ -33,6 +45,8 @@ interface IncidentManagementProps {
 export default function IncidentManagement({ incidents, isLoading: loading }: IncidentManagementProps) {
     const { toast } = useToast();
     const firestore = useFirestore();
+    const [incidentToDelete, setIncidentToDelete] = useState<Incident | null>(null);
+    const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
     const assignWellnessSession = async (incident: Incident) => {
         if (!incident.id || !incident.targetStudentId || !incident.targetStudentName) {
@@ -43,6 +57,9 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
             toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
             return;
         }
+        
+        if(!incident.id) return;
+        setIsUpdating(incident.id);
 
         try {
             // Create a new appointment
@@ -54,7 +71,7 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
                 type: 'Wellness Session',
                 time: serverTimestamp(),
                 status: 'pending',
-                notes: `Mandatory session following incident #${incident.id} on ${format(incident.timestamp, 'PPP')}. Type: ${incident.type}.`,
+                notes: `Mandatory session following incident #${incident.id.slice(0,5)}... on ${format(incident.timestamp, 'PPP')}. Type: ${incident.type}.`,
             } as Omit<Appointment, 'id'>);
 
             // Update incident status
@@ -65,6 +82,30 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
         } catch (error) {
             console.error("Error assigning wellness session:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign wellness session.' });
+        } finally {
+            setIsUpdating(null);
+        }
+    };
+
+    const handleDeleteIncident = async () => {
+        if (!incidentToDelete || !incidentToDelete.id || !firestore) return;
+        
+        setIsUpdating(incidentToDelete.id);
+        try {
+            await deleteDoc(doc(firestore, 'incidents', incidentToDelete.id));
+            toast({
+                title: 'Report Deleted',
+                description: `The incident report has been successfully deleted.`,
+            });
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Deletion Failed',
+                description: error.message || 'An error occurred while deleting the report.',
+            });
+        } finally {
+            setIncidentToDelete(null);
+            setIsUpdating(null);
         }
     };
     
@@ -113,70 +154,105 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <CardTitle>Live Incident Feed</CardTitle>
-                        <CardDescription>Monitor and manage all reported incidents across campus.</CardDescription>
+        <>
+            <AlertDialog open={!!incidentToDelete} onOpenChange={(open) => !open && setIncidentToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this incident report.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isUpdating === incidentToDelete?.id}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={handleDeleteIncident} 
+                            disabled={isUpdating === incidentToDelete?.id}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isUpdating === incidentToDelete?.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete Report
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <CardTitle>Live Incident Feed</CardTitle>
+                            <CardDescription>Monitor and manage all reported incidents across campus.</CardDescription>
+                        </div>
+                        <Button onClick={exportToCSV} variant="outline">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Export to CSV
+                        </Button>
                     </div>
-                    <Button onClick={exportToCSV} variant="outline">
-                        <Upload className="mr-2 h-4 w-4" />
-                        Export to CSV
-                    </Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Reported By</TableHead>
-                            <TableHead>Target Student</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                           <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> 
-                        ) : !incidents || incidents.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="text-center">No incidents reported yet.</TableCell></TableRow>
-                        ) : incidents.map(incident => (
-                            <TableRow key={incident.id}>
-                                <TableCell>{format(incident.timestamp, 'MMM d, yyyy h:mm a')}</TableCell>
-                                <TableCell>{incident.type}</TableCell>
-                                <TableCell>{incident.reporterName || 'N/A'}</TableCell>
-                                <TableCell>{incident.targetStudentName || incident.targetStudentId || 'N/A'}</TableCell>
-                                <TableCell>
-                                    <Badge variant={getStatusBadgeVariant(incident.status)}>{incident.status.replace('-', ' ')}</Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <span className="sr-only">Open menu</span>
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                            <DropdownMenuItem
-                                                onClick={() => assignWellnessSession(incident)}
-                                                disabled={!incident.targetStudentId || incident.status === 'wellness-assigned'}
-                                            >
-                                                <HeartPulse className="mr-2 h-4 w-4" />
-                                                Assign Wellness Session
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Reported By</TableHead>
+                                <TableHead>Target Student</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                            <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> 
+                            ) : !incidents || incidents.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center">No incidents reported yet.</TableCell></TableRow>
+                            ) : incidents.map(incident => (
+                                <TableRow key={incident.id}>
+                                    <TableCell>{format(incident.timestamp, 'MMM d, yyyy h:mm a')}</TableCell>
+                                    <TableCell>{incident.type}</TableCell>
+                                    <TableCell>{incident.reporterName || 'N/A'}</TableCell>
+                                    <TableCell>{incident.targetStudentName || incident.targetStudentId || 'N/A'}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={getStatusBadgeVariant(incident.status)}>{incident.status.replace('-', ' ')}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {isUpdating === incident.id ? (
+                                            <Loader2 className="h-5 w-5 animate-spin ml-auto" />
+                                        ) : (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Open menu</span>
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuItem
+                                                        onClick={() => assignWellnessSession(incident)}
+                                                        disabled={!incident.targetStudentId || incident.status === 'wellness-assigned'}
+                                                    >
+                                                        <HeartPulse className="mr-2 h-4 w-4" />
+                                                        Assign Wellness Session
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                        onClick={() => setIncidentToDelete(incident)}
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Delete Report
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </>
     );
 }

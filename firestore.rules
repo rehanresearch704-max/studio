@@ -12,10 +12,9 @@
  * - /sos_alerts/{sosAlertId}: User-owned emergency alerts, which are also visible to administrators for safety monitoring.
  *
  * Key Security Decisions:
- * - Admin-Only Read/Manage for Incidents: The '/incidents' collection is locked down for read and management to users
+ * - Admin-Only Manage for Incidents: The '/incidents' collection is locked down for management (update/delete) to users
  *   with the 'administrator' role, enforcing strict confidentiality.
  * - Guard-Specific Create for Incidents: Users with the 'guard' role are granted permission to create new incident reports.
- * - No User Listing: To protect user privacy, listing the entire '/users' collection is disabled for all clients except admins.
  * - Shared Ownership: Appointments in '/appointments' are accessible only to the two participants defined in the document,
  *   enabling collaborative but private scheduling.
  * - Default Deny: Access is denied by default. Rules are written to explicitly grant permissions based on defined logic.
@@ -128,8 +127,10 @@ service cloud.firestore {
      * @description Security guards or students can create incident reports. Only administrators and involved parties can view them.
      * @path /incidents/{incidentId}
      * @allow (create) A user with the 'guard' or 'student' role creates a new incident report.
-     * @allow (list) An admin lists all documents in the 'incidents' collection.
+     * @allow (list) Any signed-in user lists documents in the 'incidents' collection.
+     * @allow (delete) An admin deletes a specific incident report.
      * @deny (get) A non-admin user (unless they are a reporter or involved party) attempts to read a specific incident report.
+     * @deny (delete) A non-admin user attempts to delete an incident report.
      * @principle Enforces strict Role-Based Access Control (RBAC), separating create and manage permissions.
      */
     match /incidents/{incidentId} {
@@ -137,7 +138,7 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
       allow update: if isAdmin();
-      allow delete: if false; // Incidents cannot be deleted from the client.
+      allow delete: if isAdmin();
     }
 
     /**
