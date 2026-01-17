@@ -13,7 +13,7 @@
  *
  * Key Security Decisions:
  * - Admin-Only Manage for Incidents: The '/incidents' collection is locked down for management (update/delete) to users
- *   with the 'administrator' role, enforcing strict confidentiality.
+ *   with the 'admin' role, enforcing strict confidentiality.
  * - Guard-Specific Create for Incidents: Users with the 'guard' role are granted permission to create new incident reports.
  * - Shared Ownership: Appointments in '/appointments' are accessible only to the two participants defined in the document,
  *   enabling collaborative but private scheduling.
@@ -63,13 +63,13 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the requesting user has the 'administrator' role.
+     * Checks if the requesting user has the 'admin' role.
      * This performs a single document read to the user's own profile to check their role.
      */
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator';
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     /**
