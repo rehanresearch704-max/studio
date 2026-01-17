@@ -11,6 +11,7 @@ export interface UserProfile {
   languagePreference?: string;
   childrenUids?: string[];
   availability?: string;
+  mobileNumber?: string;
 }
 
 export type IncidentType = 'Verbal Abuse' | 'Intimidation' | 'Micro-aggressions' | 'Other';

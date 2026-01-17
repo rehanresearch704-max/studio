@@ -45,6 +45,10 @@
         "availability": {
           "type": "string",
           "description": "Faculty member's availability notes for students."
+        },
+        "mobileNumber": {
+          "type": "string",
+          "description": "User's mobile phone number."
         }
       },
       "required": [
