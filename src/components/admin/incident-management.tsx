@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 interface IncidentManagementProps {
@@ -90,23 +92,26 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
     const handleDeleteIncident = async () => {
         if (!incidentToDelete || !incidentToDelete.id || !firestore) return;
         
+        const incidentDocRef = doc(firestore, 'incidents', incidentToDelete.id);
         setIsUpdating(incidentToDelete.id);
-        try {
-            await deleteDoc(doc(firestore, 'incidents', incidentToDelete.id));
+        
+        deleteDoc(incidentDocRef)
+          .then(() => {
             toast({
                 title: 'Report Deleted',
                 description: `The incident report has been successfully deleted.`,
             });
-        } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Deletion Failed',
-                description: error.message || 'An error occurred while deleting the report.',
-            });
-        } finally {
+          })
+          .catch((serverError) => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: incidentDocRef.path,
+                operation: 'delete',
+            }));
+          })
+          .finally(() => {
             setIncidentToDelete(null);
             setIsUpdating(null);
-        }
+          });
     };
     
     const getStatusBadgeVariant = (status: Incident['status']) => {

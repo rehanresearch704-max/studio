@@ -32,6 +32,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function UserManagementPage() {
   const firestore = useFirestore();
@@ -56,24 +58,31 @@ export default function UserManagementPage() {
       });
       return;
     }
-    setIsUpdating(uid);
-    try {
-      if (!firestore) throw new Error("Firestore not available");
-      const userDocRef = doc(firestore, 'users', uid);
-      await updateDoc(userDocRef, { role: newRole });
-      toast({
-        title: 'Role Updated',
-        description: `User role has been successfully changed to ${newRole}.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: error.message || 'Could not update user role.',
-      });
-    } finally {
-      setIsUpdating(null);
+    if (!firestore) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+        return;
     }
+
+    setIsUpdating(uid);
+    const userDocRef = doc(firestore, 'users', uid);
+
+    updateDoc(userDocRef, { role: newRole })
+        .then(() => {
+            toast({
+                title: 'Role Updated',
+                description: `User role has been successfully changed to ${newRole}.`,
+            });
+        })
+        .catch((serverError) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: { role: newRole },
+            }));
+        })
+        .finally(() => {
+            setIsUpdating(null);
+        });
   };
   
   const handleDeleteUser = async () => {
@@ -87,23 +96,27 @@ export default function UserManagementPage() {
       setUserToDelete(null);
       return;
     }
+    
+    const userDocRef = doc(firestore, 'users', userToDelete.uid);
     setIsUpdating(userToDelete.uid);
-    try {
-      await deleteDoc(doc(firestore, 'users', userToDelete.uid));
-      toast({
-        title: 'User Deleted',
-        description: `The user ${userToDelete.name} has been deleted. Note: this only removes their app data, not their login.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Deletion Failed',
-        description: error.message || 'An error occurred while deleting the user.',
-      });
-    } finally {
-      setUserToDelete(null);
-      setIsUpdating(null);
-    }
+
+    deleteDoc(userDocRef)
+        .then(() => {
+            toast({
+                title: 'User Deleted',
+                description: `The user ${userToDelete.name} has been deleted. Note: this only removes their app data, not their login.`,
+            });
+        })
+        .catch((serverError) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'delete',
+            }));
+        })
+        .finally(() => {
+            setUserToDelete(null);
+            setIsUpdating(null);
+        });
   };
 
 
