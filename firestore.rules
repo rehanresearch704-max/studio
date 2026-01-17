@@ -128,7 +128,7 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.uid == userId && request.resource.data.email.matches('.*@hitam\\.org$');
       allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isOwner(userId);
     }
 
     /**
@@ -146,7 +146,7 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isGuard() || isAdmin() || (isStudent() && request.resource.data.reporterId == request.auth.uid);
       allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isOwner(resource.data.reporterId);
     }
 
     /**

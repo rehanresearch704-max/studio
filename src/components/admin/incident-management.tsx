@@ -103,10 +103,16 @@ export default function IncidentManagement({ incidents, isLoading: loading }: In
             });
           })
           .catch((serverError) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
+             const permissionError = new FirestorePermissionError({
                 path: incidentDocRef.path,
                 operation: 'delete',
-            }));
+            });
+             errorEmitter.emit('permission-error', permissionError);
+             toast({
+                variant: 'destructive',
+                title: 'Permission Denied',
+                description: 'You do not have permission to delete this report. Please contact an administrator.',
+             });
           })
           .finally(() => {
             setIncidentToDelete(null);

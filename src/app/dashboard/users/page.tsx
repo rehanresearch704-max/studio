@@ -74,11 +74,17 @@ export default function UserManagementPage() {
             });
         })
         .catch((serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
+            const permissionError = new FirestorePermissionError({
                 path: userDocRef.path,
                 operation: 'update',
                 requestResourceData: { role: newRole },
-            }));
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({
+              variant: 'destructive',
+              title: 'Permission Denied',
+              description: 'You do not have permission to change user roles. Please contact an administrator.',
+            });
         })
         .finally(() => {
             setIsUpdating(null);
@@ -108,10 +114,16 @@ export default function UserManagementPage() {
             });
         })
         .catch((serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
+            const permissionError = new FirestorePermissionError({
                 path: userDocRef.path,
                 operation: 'delete',
-            }));
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({
+              variant: 'destructive',
+              title: 'Permission Denied',
+              description: 'You do not have permission to delete this user. Please contact an administrator.',
+            });
         })
         .finally(() => {
             setUserToDelete(null);
